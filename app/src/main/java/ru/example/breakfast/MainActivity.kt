@@ -12,13 +12,14 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import java.util.Locale
 import kotlin.math.roundToInt
 
 class MainActivity : Activity() {
@@ -27,7 +28,6 @@ class MainActivity : Activity() {
     private lateinit var root: LinearLayout
     private lateinit var content: LinearLayout
     private lateinit var keypad: LinearLayout
-
     private lateinit var potField: EditText
 
     private val nameFields = mutableListOf<EditText>()
@@ -74,17 +74,24 @@ class MainActivity : Activity() {
             setBackgroundColor(backgroundColor)
         }
 
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
+        // Заголовок строго по центру, шестерёнка справа.
+        val header = FrameLayout(this)
 
         val title = TextView(this).apply {
-            text = "Моя каша"
-            textSize = 26f
+            text = "Завтрак"
+            textSize = 27f
             setTextColor(textColor)
             typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
         }
+
+        header.addView(
+            title,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dp(48)
+            )
+        )
 
         val settingsButton = TextView(this).apply {
             text = "⚙"
@@ -98,23 +105,21 @@ class MainActivity : Activity() {
         }
 
         header.addView(
-            title,
-            LinearLayout.LayoutParams(
-                0,
-                dp(46),
-                1f
-            )
-        )
-
-        header.addView(
             settingsButton,
-            LinearLayout.LayoutParams(
+            FrameLayout.LayoutParams(
                 dp(48),
-                dp(46)
+                dp(48),
+                Gravity.END or Gravity.CENTER_VERTICAL
             )
         )
 
-        root.addView(header)
+        root.addView(
+            header,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(48)
+            )
+        )
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -144,22 +149,31 @@ class MainActivity : Activity() {
 
         setContentView(root)
 
-        // Учитываем нижнюю системную панель Android.
-        // Это оставляет цифровую клавиатуру выше системных кнопок.
+        // Учитываем верхнюю и нижнюю системные панели Android.
         root.setOnApplyWindowInsetsListener { view, insets ->
+            val topInset: Int
+            val bottomInset: Int
 
-            val bottomInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                insets.getInsets(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val bars = insets.getInsets(
                     WindowInsets.Type.systemBars()
-                ).bottom
+                )
+                topInset = bars.top
+                bottomInset = bars.bottom
             } else {
                 @Suppress("DEPRECATION")
-                insets.systemWindowInsetBottom
+                val legacyTop = insets.systemWindowInsetTop
+
+                @Suppress("DEPRECATION")
+                val legacyBottom = insets.systemWindowInsetBottom
+
+                topInset = legacyTop
+                bottomInset = legacyBottom
             }
 
             view.setPadding(
                 dp(12),
-                dp(4),
+                dp(4) + topInset,
                 dp(12),
                 dp(4) + bottomInset
             )
@@ -183,13 +197,13 @@ class MainActivity : Activity() {
         addLabel(
             card,
             "ВЕС КАСТРЮЛИ С КАШЕЙ, г",
-            12f,
+            13f,
             mutedColor
         )
 
         potField = makeNumberField().apply {
             hint = "Например, 850"
-            textSize = 23f
+            textSize = 24f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER_VERTICAL
         }
@@ -197,6 +211,12 @@ class MainActivity : Activity() {
         potField.setOnFocusChangeListener { view, hasFocus ->
             if (hasFocus) {
                 showKeypad(view as EditText)
+            }
+        }
+
+        potField.addTextChangedListenerSimple {
+            if (!rebuilding) {
+                recalculate()
             }
         }
 
@@ -217,18 +237,12 @@ class MainActivity : Activity() {
                 bottomMargin = dp(6)
             }
         )
-
-        potField.addTextChangedListenerSimple {
-            if (!rebuilding) {
-                recalculate()
-            }
-        }
     }
 
     private fun buildPeopleCards() {
         val heading = TextView(this).apply {
             text = "Кому сколько?"
-            textSize = 18f
+            textSize = 19f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(textColor)
         }
@@ -237,11 +251,10 @@ class MainActivity : Activity() {
             heading,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(28)
+                dp(30)
             )
         )
 
-        // Заголовки трёх колонок.
         val columns = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -251,7 +264,7 @@ class MainActivity : Activity() {
         columns.addView(
             TextView(this).apply {
                 text = "Имя"
-                textSize = 12f
+                textSize = 13f
                 setTextColor(mutedColor)
             },
             LinearLayout.LayoutParams(
@@ -264,12 +277,12 @@ class MainActivity : Activity() {
         columns.addView(
             TextView(this).apply {
                 text = "Крупа"
-                textSize = 12f
+                textSize = 13f
                 gravity = Gravity.CENTER
                 setTextColor(mutedColor)
             },
             LinearLayout.LayoutParams(
-                dp(64),
+                dp(68),
                 dp(24)
             )
         )
@@ -277,12 +290,12 @@ class MainActivity : Activity() {
         columns.addView(
             TextView(this).apply {
                 text = "Каша"
-                textSize = 12f
+                textSize = 13f
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
                 setTextColor(mutedColor)
             },
             LinearLayout.LayoutParams(
-                dp(80),
+                dp(82),
                 dp(24)
             )
         )
@@ -290,7 +303,6 @@ class MainActivity : Activity() {
         content.addView(columns)
 
         for (i in defaultNames.indices) {
-
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -308,31 +320,28 @@ class MainActivity : Activity() {
                 )
             }
 
-            // Имя едока.
             val name = EditText(this).apply {
-                textSize = 16f
+                textSize = 18f
                 setTextColor(textColor)
                 setSingleLine(true)
                 setPadding(0, 0, dp(3), 0)
                 background = null
                 hint = "Имя"
                 setSelectAllOnFocus(true)
-                imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+                imeOptions = EditorInfo.IME_ACTION_DONE
             }
 
-            // Количество сухой крупы.
             val grams = makeNumberField().apply {
-                textSize = 17f
+                textSize = 20f
                 gravity = Gravity.CENTER
                 setPadding(0, 0, 0, 0)
                 hint = "0"
                 background = null
             }
 
-            // Расчётная порция готовой каши.
             val result = TextView(this).apply {
                 text = "—"
-                textSize = 19f
+                textSize = 22f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(accentColor)
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
@@ -347,7 +356,7 @@ class MainActivity : Activity() {
                 name,
                 LinearLayout.LayoutParams(
                     0,
-                    dp(44),
+                    dp(48),
                     1f
                 )
             )
@@ -355,16 +364,16 @@ class MainActivity : Activity() {
             row.addView(
                 grams,
                 LinearLayout.LayoutParams(
-                    dp(64),
-                    dp(42)
+                    dp(68),
+                    dp(44)
                 )
             )
 
             row.addView(
                 result,
                 LinearLayout.LayoutParams(
-                    dp(80),
-                    dp(42)
+                    dp(82),
+                    dp(44)
                 )
             )
 
@@ -419,41 +428,26 @@ class MainActivity : Activity() {
         )
 
         for (row in rows) {
-
             val rowLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
             }
 
             for (key in row) {
-
                 val button = Button(this).apply {
                     text = key
                     textSize = if (key == "Ввод") 14f else 21f
                     isAllCaps = false
 
                     setTextColor(
-                        if (key == "Ввод") {
-                            Color.WHITE
-                        } else {
-                            textColor
-                        }
+                        if (key == "Ввод") Color.WHITE else textColor
                     )
 
                     background = roundedBackground(
-                        if (key == "Ввод") {
-                            accentColor
-                        } else {
-                            cardColor
-                        },
+                        if (key == "Ввод") accentColor else cardColor,
                         10
                     )
 
-                    setPadding(
-                        dp(2),
-                        0,
-                        dp(2),
-                        0
-                    )
+                    setPadding(dp(2), 0, dp(2), 0)
 
                     setOnClickListener {
                         when (key) {
@@ -560,7 +554,6 @@ class MainActivity : Activity() {
         val current = field.text.toString()
 
         if (start != end) {
-
             val updated = current.removeRange(
                 minOf(start, end),
                 maxOf(start, end)
@@ -570,9 +563,7 @@ class MainActivity : Activity() {
             field.setSelection(
                 minOf(start, updated.length)
             )
-
         } else if (start > 0) {
-
             val updated = current.removeRange(
                 start - 1,
                 start
@@ -584,7 +575,6 @@ class MainActivity : Activity() {
     }
 
     private fun showSettings() {
-
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(
@@ -597,25 +587,20 @@ class MainActivity : Activity() {
 
         val emptyInput = EditText(this).apply {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setText(
-                prefs.getInt("empty_pot", 0).toString()
-            )
+            setText(prefs.getInt("empty_pot", 0).toString())
             setSingleLine(true)
             textSize = 18f
-            showSoftInputOnFocus = false
+            hint = "Например, 254"
         }
 
         val lossInput = EditText(this).apply {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setText(
-                prefs.getInt("loss", 0).toString()
-            )
+            setText(prefs.getInt("loss", 0).toString())
             setSingleLine(true)
             textSize = 18f
-            showSoftInputOnFocus = false
+            hint = "Например, 30"
         }
 
-        // Постоянные подписи не исчезают при заполнении полей.
         addLabel(
             layout,
             "Вес пустой кастрюли, г",
@@ -654,10 +639,8 @@ class MainActivity : Activity() {
             .create()
 
         dialog.setOnShowListener {
-
             dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener {
-
                     prefs.edit()
                         .putInt(
                             "empty_pot",
@@ -687,19 +670,18 @@ class MainActivity : Activity() {
         )
 
         for (i in defaultNames.indices) {
-
             nameFields[i].setText(
                 prefs.getString(
                     "name_$i",
                     defaultNames[i]
-                )
+                ) ?: defaultNames[i]
             )
 
             gramFields[i].setText(
                 prefs.getString(
                     "grams_$i",
                     defaultGrams[i].toString()
-                )
+                ) ?: defaultGrams[i].toString()
             )
         }
 
@@ -752,7 +734,6 @@ class MainActivity : Activity() {
         }
 
         for (i in defaultNames.indices) {
-
             val dry = gramFields[i]
                 .text.toString()
                 .toDoubleOrNull() ?: 0.0
@@ -761,7 +742,6 @@ class MainActivity : Activity() {
                 dry <= 0 -> "—"
                 cooked == null -> "—"
                 totalDry <= 0 -> "—"
-
                 else -> {
                     "${(cooked * dry / totalDry).roundToInt()} г"
                 }
@@ -844,10 +824,7 @@ class MainActivity : Activity() {
         return GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
-            setStroke(
-                dp(1),
-                borderColor
-            )
+            setStroke(dp(1), borderColor)
         }
     }
 
@@ -867,7 +844,6 @@ class MainActivity : Activity() {
     ) {
         addTextChangedListener(
             object : android.text.TextWatcher {
-
                 override fun beforeTextChanged(
                     s: CharSequence?,
                     start: Int,
