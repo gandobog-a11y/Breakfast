@@ -1,600 +1,151 @@
-package ru.example.breakfast;
+package ru.gandobog.kasha
 
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.os.Bundle;
-import android.content.SharedPreferences;
-import android.graphics.Color;
-import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
-import android.text.InputType;
-import android.view.Gravity;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
+import android.app.Activity
+import android.app.AlertDialog
+import android.os.Bundle
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.content.Context
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.widget.*
+import android.text.InputType
 
-import java.util.Locale;
+class MainActivity : Activity() {
+    private val prefs by lazy { getSharedPreferences("kasha", Context.MODE_PRIVATE) }
+    private val defaultNames = listOf("Я", "Порция 2", "Порция 3", "Порция 4", "Порция 5")
+    private val names = MutableList(5) { i -> prefs.getString("name_$i", defaultNames[i]) ?: defaultNames[i] }
+    private val dry = MutableList(5) { i -> prefs.getString("dry_$i", "") ?: "" }
+    private var potFull = prefs.getString("pot_full", "") ?: ""
+    private var emptyPot = prefs.getString("empty_pot", "0") ?: "0"
+    private var losses = prefs.getString("losses", "0") ?: "0"
+    private var selected = 0
+    private lateinit var root: LinearLayout
+    private lateinit var dryViews: List<TextView>
+    private lateinit var cookedViews: List<TextView>
+    private lateinit var potView: TextView
+    private lateinit var keypad: LinearLayout
 
-public class MainActivity extends Activity {
+    private val ink = Color.rgb(35, 42, 48)
+    private val muted = Color.rgb(100, 110, 118)
+    private val paper = Color.rgb(248, 249, 247)
+    private val green = Color.rgb(39, 105, 75)
+    private val border = Color.rgb(220, 225, 220)
 
-    private final int cream = Color.rgb(250, 247, 239);
-    private final int brown = Color.rgb(75, 58, 40);
-    private final int muted = Color.rgb(125, 112, 96);
-    private final int green = Color.rgb(87, 119, 79);
-    private final int white = Color.WHITE;
-
-    private SharedPreferences prefs;
-    private LinearLayout root;
-    private LinearLayout peopleContainer;
-
-    private final String[] defaultNames = {
-        "Я", "Жена", "Ребёнок 1", "Ребёнок 2", "Ребёнок 3"
-    };
-
-    private final int[] defaultDry = {50, 30, 30, 20, 0};
-    private final String[] names = new String[5];
-    private final int[] dry = new int[5];
-    private final int[] cooked = new int[5];
-
-    private int potWeight = 1200;
-    private int emptyPot = 0;
-    private int losses = 0;
-
-    private TextView potValue;
-    private TextView totalValue;
-    private TextView settingsSummary;
-
-    private int editingPerson = -1;
-    private String numberBuffer = "";
-    private TextView keypadDisplay;
-    private AlertDialog keypadDialog;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        prefs = getSharedPreferences("my_porridge", MODE_PRIVATE);
-        loadData();
-        buildScreen();
-        recalculate();
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.statusBarColor = green
+        window.navigationBarColor = Color.rgb(25, 65, 48)
+        buildUi()
+        refresh()
     }
 
-    private void loadData() {
-        for (int i = 0; i < 5; i++) {
-            names[i] = prefs.getString("name" + i, defaultNames[i]);
-            dry[i] = prefs.getInt("dry" + i, defaultDry[i]);
+    private fun dp(v: Int) = (v * resources.displayMetrics.density + .5f).toInt()
+    private fun bg(color: Int, radius: Int = 10, stroke: Int = 0) = GradientDrawable().apply {
+        setColor(color); cornerRadius = dp(radius).toFloat(); if (stroke != 0) setStroke(dp(1), stroke)
+    }
+    private fun text(s: String, size: Float, color: Int = ink, bold: Boolean = false) = TextView(this).apply {
+        text = s; textSize = size; setTextColor(color); gravity = Gravity.CENTER_VERTICAL
+        if (bold) setTypeface(typeface, Typeface.BOLD)
+    }
+    private fun makeButton(s: String, action: () -> Unit, primary: Boolean = false) = TextView(this).apply {
+        text = s; textSize = if (s == "Ввод") 17f else 24f; gravity = Gravity.CENTER
+        setTextColor(if (primary) Color.WHITE else if (s == "⌫") Color.rgb(155, 50, 40) else ink)
+        background = bg(if (primary) green else Color.WHITE, 10, if (primary) 0 else border)
+        isClickable = true; isFocusable = true; setOnClickListener { action() }
+    }
+
+    private fun buildUi() {
+        root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(5), dp(12), dp(6)); setBackgroundColor(paper)
         }
+        setContentView(root)
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        header.addView(text("Моя каша", 25f, green, true), LinearLayout.LayoutParams(0, dp(44), 1f))
+        header.addView(makeButton("⚙", { settings() }).apply { textSize = 24f }, LinearLayout.LayoutParams(dp(48), dp(40)))
+        root.addView(header)
+        root.addView(text("Сухая крупа и готовая каша", 12f, muted), LinearLayout.LayoutParams(-1, dp(22)))
 
-        potWeight = prefs.getInt("pot", 1200);
-        emptyPot = prefs.getInt("empty", 0);
-        losses = prefs.getInt("losses", 0);
-    }
+        val headings = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(5), 0, dp(5), 0) }
+        headings.addView(text("Порция", 12f, muted, true), LinearLayout.LayoutParams(0, dp(25), 1.1f))
+        headings.addView(text("Сухая, г", 12f, muted, true).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, dp(25), 1f))
+        headings.addView(text("Готовая, г", 12f, muted, true).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, dp(25), 1f))
+        root.addView(headings)
 
-    private void saveData() {
-        SharedPreferences.Editor e = prefs.edit();
-
-        for (int i = 0; i < 5; i++) {
-            e.putString("name" + i, names[i]);
-            e.putInt("dry" + i, dry[i]);
+        val dryList = mutableListOf<TextView>(); val cookedList = mutableListOf<TextView>()
+        repeat(5) { i ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; background = bg(Color.WHITE, 9, border); setPadding(dp(6), dp(2), dp(6), dp(2)) }
+            row.addView(text(names[i], 13f, ink, true).apply { maxLines = 2; setOnClickListener { selected = i; refresh() } }, LinearLayout.LayoutParams(0, -1, 1.1f))
+            val d = text(dry[i].ifBlank { "—" }, 18f, green, true).apply { gravity = Gravity.CENTER; background = bg(Color.rgb(240,247,241), 8, border); setOnClickListener { selected = i; refresh() } }
+            row.addView(d, LinearLayout.LayoutParams(0, dp(38), 1f).apply { setMargins(dp(2), 0, dp(2), 0) }); dryList.add(d)
+            val c = text("—", 18f, ink, true).apply { gravity = Gravity.CENTER; maxLines = 1; setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_UNIFORM) }
+            row.addView(c, LinearLayout.LayoutParams(0, dp(38), 1f)); cookedList.add(c)
+            root.addView(row, LinearLayout.LayoutParams(-1, 0, 1f).apply { setMargins(0, dp(2), 0, dp(2)) })
         }
+        dryViews = dryList; cookedViews = cookedList
 
-        e.putInt("pot", potWeight);
-        e.putInt("empty", emptyPot);
-        e.putInt("losses", losses);
-        e.apply();
+        val potRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; background = bg(Color.rgb(232,241,234), 10); setPadding(dp(8), dp(3), dp(8), dp(3)) }
+        potRow.addView(text("Кастрюля с кашей, г", 13f, ink, true), LinearLayout.LayoutParams(0, dp(42), 1f))
+        potView = text(potFull.ifBlank { "Ввести" }, 17f, green, true).apply { gravity = Gravity.CENTER; background = bg(Color.WHITE, 8, border); setOnClickListener { selected = 5; refresh() } }
+        potRow.addView(potView, LinearLayout.LayoutParams(dp(112), dp(36)))
+        root.addView(potRow, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(0, dp(4), 0, dp(3)) })
+        root.addView(text("Выбери поле и нажимай цифры", 11f, muted).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(-1, dp(19)))
+        keypad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(keypad, LinearLayout.LayoutParams(-1, 0, 2.5f))
+        buildKeypad()
     }
 
-    private GradientDrawable background(int color, int radius) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
-        d.setCornerRadius(radius);
-        return d;
-    }
-
-    private TextView text(String value, int size, int color) {
-        TextView t = new TextView(this);
-        t.setText(value);
-        t.setTextSize(size);
-        t.setTextColor(color);
-        t.setGravity(Gravity.CENTER_VERTICAL);
-        return t;
-    }
-
-    private TextView centeredText(String value, int size, int color) {
-        TextView t = text(value, size, color);
-        t.setGravity(Gravity.CENTER);
-        return t;
-    }
-
-    private LinearLayout vertical() {
-        LinearLayout l = new LinearLayout(this);
-        l.setOrientation(LinearLayout.VERTICAL);
-        return l;
-    }
-
-    private LinearLayout horizontal() {
-        LinearLayout l = new LinearLayout(this);
-        l.setOrientation(LinearLayout.HORIZONTAL);
-        l.setGravity(Gravity.CENTER_VERTICAL);
-        return l;
-    }
-
-    private LinearLayout.LayoutParams params(
-            int width, int height) {
-        return new LinearLayout.LayoutParams(width, height);
-    }
-
-    private LinearLayout.LayoutParams weighted() {
-        return new LinearLayout.LayoutParams(
-            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1
-        );
-    }
-
-    private TextView label(String value) {
-        TextView t = centeredText(value, 12, muted);
-        t.setPadding(2, 4, 2, 4);
-        return t;
-    }
-
-    private void buildScreen() {
-        root = vertical();
-        root.setBackgroundColor(cream);
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-
-        LinearLayout page = vertical();
-        page.setPadding(18, 10, 18, 22);
-
-        // Заголовок
-        LinearLayout header = horizontal();
-
-        TextView title = text("Моя каша", 29, brown);
-        title.setTypeface(null, Typeface.BOLD);
-
-        header.addView(title, weighted());
-
-        TextView gear = centeredText("⚙", 29, brown);
-        gear.setPadding(12, 4, 4, 4);
-        gear.setOnClickListener(v -> showSettings());
-
-        header.addView(gear, params(52, 52));
-        page.addView(header);
-
-        TextView subtitle = text(
-            "Расчёт порций на всю семью", 14, muted
-        );
-        subtitle.setPadding(0, 0, 0, 16);
-        page.addView(subtitle);
-
-        // Таблица
-        LinearLayout table = vertical();
-        table.setPadding(12, 8, 12, 8);
-        table.setBackground(background(white, 18));
-
-        LinearLayout heading = horizontal();
-        heading.addView(label("КТО"), weighted());
-        heading.addView(label("СУХАЯ\nКРУПА"), params(86, 46));
-        heading.addView(label("ГОТОВАЯ\nКАША"), params(92, 46));
-        table.addView(heading);
-
-        View divider = new View(this);
-        divider.setBackgroundColor(Color.rgb(235, 229, 217));
-        table.addView(divider, params(
-            ViewGroup.LayoutParams.MATCH_PARENT, 1
-        ));
-
-        peopleContainer = vertical();
-        table.addView(peopleContainer);
-
-        page.addView(table);
-
-        TextView hint = text(
-            "Нажми на количество граммов, чтобы изменить порцию.",
-            12, muted
-        );
-        hint.setPadding(4, 8, 4, 18);
-        page.addView(hint);
-
-        // Вес кастрюли
-        LinearLayout potCard = vertical();
-        potCard.setPadding(16, 14, 16, 14);
-        potCard.setBackground(background(Color.rgb(239, 233, 219), 18));
-
-        TextView potTitle = text("⚖  Вес кастрюли с кашей", 17, brown);
-        potTitle.setTypeface(null, Typeface.BOLD);
-        potCard.addView(potTitle);
-
-        LinearLayout potRow = horizontal();
-
-        TextView potHint = text(
-            "Вместе с кастрюлей, в граммах", 12, muted
-        );
-        potRow.addView(potHint, weighted());
-
-        potValue = centeredText("", 25, green);
-        potValue.setTypeface(null, Typeface.BOLD);
-        potValue.setPadding(8, 4, 8, 4);
-        potValue.setBackground(background(white, 12));
-        potValue.setOnClickListener(v -> showKeypad(-1));
-        potRow.addView(potValue, params(110, 54));
-
-        potCard.addView(potRow);
-        page.addView(potCard);
-
-        // Итог
-        LinearLayout result = vertical();
-        result.setPadding(16, 14, 16, 14);
-        result.setBackground(background(green, 18));
-
-        TextView resultTitle = text(
-            "Готовой каши для распределения", 16, white
-        );
-        resultTitle.setTypeface(null, Typeface.BOLD);
-        result.addView(resultTitle);
-
-        totalValue = text("", 32, white);
-        totalValue.setTypeface(null, Typeface.BOLD);
-        totalValue.setPadding(0, 4, 0, 0);
-        result.addView(totalValue);
-
-        TextView grams = text("граммов", 13, white);
-        result.addView(grams);
-
-        page.addView(result, params(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-
-        settingsSummary = centeredText("", 12, muted);
-        settingsSummary.setPadding(4, 12, 4, 0);
-        page.addView(settingsSummary);
-
-        scroll.addView(page);
-        root.addView(scroll, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1
-        ));
-
-        setContentView(root);
-        renderPeople();
-    }
-
-    private void renderPeople() {
-        peopleContainer.removeAllViews();
-
-        for (int i = 0; i < 5; i++) {
-            final int index = i;
-
-            LinearLayout row = horizontal();
-            row.setPadding(0, 8, 0, 8);
-
-            TextView name = text(names[i], 16, brown);
-            name.setTypeface(null, Typeface.BOLD);
-            name.setSingleLine(false);
-            name.setOnClickListener(v -> showSettings());
-
-            row.addView(name, weighted());
-
-            TextView dryValue = centeredText(
-                dry[i] + " г", 18, green
-            );
-            dryValue.setTypeface(null, Typeface.BOLD);
-            dryValue.setBackground(background(
-                Color.rgb(240, 245, 235), 10
-            ));
-            dryValue.setPadding(3, 10, 3, 10);
-            dryValue.setOnClickListener(v -> showKeypad(index));
-
-            row.addView(dryValue, params(86, 46));
-
-            TextView cookedValue = centeredText(
-                dry[i] == 0 ? "—" : cooked[i] + " г",
-                16, brown
-            );
-            row.addView(cookedValue, params(92, 46));
-
-            peopleContainer.addView(row);
-
-            if (i < 4) {
-                View line = new View(this);
-                line.setBackgroundColor(Color.rgb(240, 235, 226));
-                peopleContainer.addView(line, params(
-                    ViewGroup.LayoutParams.MATCH_PARENT, 1
-                ));
-            }
+    private fun buildKeypad() {
+        keypad.removeAllViews()
+        listOf(listOf("1","2","3"), listOf("4","5","6"), listOf("7","8","9"), listOf("⌫","0","Ввод")).forEach { keys ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+            keys.forEach { key -> row.addView(makeButton(key, { press(key) }, key == "Ввод"), LinearLayout.LayoutParams(0, -1, 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }) }
+            keypad.addView(row, LinearLayout.LayoutParams(-1, 0, 1f))
         }
     }
-
-    private void recalculate() {
-        int totalDry = 0;
-
-        for (int value : dry) {
-            totalDry += Math.max(0, value);
-        }
-
-        int ready = Math.max(0, potWeight - emptyPot - losses);
-
-        // Сначала вычисляем все порции, округляя до целого грамма.
-        int assigned = 0;
-
-        for (int i = 0; i < 5; i++) {
-            if (totalDry == 0 || dry[i] <= 0) {
-                cooked[i] = 0;
-            } else {
-                cooked[i] = (int) Math.round(
-                    (double) ready * dry[i] / totalDry
-                );
-                assigned += cooked[i];
-            }
-        }
-
-        // Корректируем округление, чтобы сумма порций совпала
-        // с весом готовой каши, если есть хотя бы одна порция.
-        if (totalDry > 0) {
-            int difference = ready - assigned;
-
-            for (int i = 4; i >= 0; i--) {
-                if (dry[i] > 0) {
-                    cooked[i] += difference;
-                    break;
-                }
-            }
-        }
-
-        if (potValue != null) {
-            potValue.setText(potWeight + " г");
-        }
-
-        if (totalValue != null) {
-            totalValue.setText(ready + " г");
-        }
-
-        if (settingsSummary != null) {
-            settingsSummary.setText(
-                "Пустая кастрюля: " + emptyPot
-                + " г  •  Потери: " + losses + " г"
-            );
-        }
-
-        if (peopleContainer != null) {
-            renderPeople();
-        }
-
-        saveData();
+    private fun press(key: String) {
+        if (key == "Ввод") { selected = if (selected < 5) 5 else 0; refresh(); return }
+        val old = if (selected == 5) potFull else dry[selected]
+        val next = if (key == "⌫") old.dropLast(1) else (old + key).trimStart('0').ifEmpty { "0" }
+        if (selected == 5) potFull = next else dry[selected] = next
+        save(); refresh()
     }
-
-    private void showKeypad(int person) {
-        editingPerson = person;
-
-        int current = person == -1 ? potWeight : dry[person];
-        numberBuffer = String.valueOf(current);
-
-        LinearLayout panel = vertical();
-        panel.setPadding(16, 16, 16, 16);
-        panel.setBackgroundColor(cream);
-
-        TextView caption = centeredText(
-            person == -1
-                ? "Вес кастрюли с кашей"
-                : "Сухая крупа: " + names[person],
-            18, brown
-        );
-        caption.setPadding(0, 0, 0, 12);
-        panel.addView(caption);
-
-        keypadDisplay = centeredText(numberBuffer + " г", 32, green);
-        keypadDisplay.setTypeface(null, Typeface.BOLD);
-        keypadDisplay.setBackground(background(white, 12));
-        keypadDisplay.setPadding(8, 12, 8, 12);
-
-        panel.addView(keypadDisplay, params(
-            ViewGroup.LayoutParams.MATCH_PARENT, 64
-        ));
-
-        String[][] keys = {
-            {"1", "2", "3"},
-            {"4", "5", "6"},
-            {"7", "8", "9"},
-            {"⌫", "0", "Ввод"}
-        };
-
-        for (String[] keyRow : keys) {
-            LinearLayout row = horizontal();
-            row.setPadding(0, 4, 0, 4);
-
-            for (String key : keyRow) {
-                Button button = new Button(this);
-                button.setText(key);
-                button.setTextSize(20);
-                button.setAllCaps(false);
-                button.setTextColor(brown);
-                button.setBackground(background(white, 12));
-
-                LinearLayout.LayoutParams bp =
-                    new LinearLayout.LayoutParams(
-                        0, 58, 1
-                    );
-                bp.setMargins(3, 0, 3, 0);
-                row.addView(button, bp);
-
-                button.setOnClickListener(v -> {
-                    if (key.equals("Ввод")) {
-                        keypadDialog.dismiss();
-                        return;
-                    }
-
-                    if (key.equals("⌫")) {
-                        if (!numberBuffer.isEmpty()) {
-                            numberBuffer = numberBuffer.substring(
-                                0, numberBuffer.length() - 1
-                            );
-                        }
-                    } else {
-                        if (numberBuffer.length() < 7) {
-                            if (numberBuffer.equals("0")) {
-                                numberBuffer = key;
-                            } else {
-                                numberBuffer += key;
-                            }
-                        }
-                    }
-
-                    if (numberBuffer.isEmpty()) {
-                        keypadDisplay.setText("0 г");
-                    } else {
-                        keypadDisplay.setText(numberBuffer + " г");
-                    }
-
-                    applyNumber();
-                });
-            }
-
-            panel.addView(row);
+    private fun refresh() {
+        dryViews.forEachIndexed { i, v ->
+            v.text = dry[i].ifBlank { "—" }
+            v.background = bg(if (selected == i) Color.rgb(215,235,219) else Color.rgb(240,247,241), 8, if (selected == i) green else border)
         }
-
-        keypadDialog = new AlertDialog.Builder(this)
-            .setView(panel)
-            .create();
-
-        keypadDialog.show();
-
-        if (keypadDialog.getWindow() != null) {
-            keypadDialog.getWindow().setLayout(
-                (int) (getResources().getDisplayMetrics().widthPixels
-                    * 0.90),
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            );
+        potView.text = potFull.ifBlank { "Ввести" }; potView.background = bg(Color.WHITE, 8, if (selected == 5) green else border)
+        val totalDry = dry.sumOf { it.toLongOrNull() ?: 0L }
+        val cooked = (potFull.toLongOrNull() ?: 0L) - (emptyPot.toLongOrNull() ?: 0L) - (losses.toLongOrNull() ?: 0L)
+        cookedViews.forEachIndexed { i, v ->
+            val portion = dry[i].toLongOrNull() ?: 0L
+            v.text = if (totalDry > 0 && cooked > 0 && portion > 0) (cooked * portion / totalDry).toString() else "—"
         }
     }
-
-    private void applyNumber() {
-        int value = 0;
-
-        try {
-            if (!numberBuffer.isEmpty()) {
-                value = Integer.parseInt(numberBuffer);
-            }
-        } catch (NumberFormatException ignored) {
-            value = 0;
-        }
-
-        value = Math.max(0, Math.min(value, 999999));
-
-        if (editingPerson == -1) {
-            potWeight = value;
-        } else {
-            dry[editingPerson] = value;
-        }
-
-        recalculate();
+    private fun save() {
+        prefs.edit().apply {
+            names.forEachIndexed { i, s -> putString("name_$i", s) }; dry.forEachIndexed { i, s -> putString("dry_$i", s) }
+            putString("pot_full", potFull); putString("empty_pot", emptyPot); putString("losses", losses)
+        }.apply()
     }
-
-    private void showSettings() {
-        LinearLayout panel = vertical();
-        panel.setPadding(20, 8, 20, 4);
-
-        TextView title = text("Настройки", 24, brown);
-        title.setTypeface(null, Typeface.BOLD);
-        title.setPadding(0, 0, 0, 12);
-        panel.addView(title);
-
-        EditText[] nameInputs = new EditText[5];
-
-        for (int i = 0; i < 5; i++) {
-            TextView caption = text(
-                "Имя едока " + (i + 1), 13, muted
-            );
-            panel.addView(caption);
-
-            EditText input = new EditText(this);
-            input.setSingleLine(true);
-            input.setText(names[i]);
-            input.setTextSize(16);
-            input.setHint("Имя");
-            nameInputs[i] = input;
-            panel.addView(input, params(
-                ViewGroup.LayoutParams.MATCH_PARENT, 48
-            ));
+    private fun settings() {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(4), dp(20), dp(4)) }
+        val nameEdits = mutableListOf<EditText>()
+        repeat(5) { i ->
+            val e = EditText(this).apply { setSingleLine(true); textSize = 16f; setText(names[i]); hint = "Название порции ${i+1}" }
+            box.addView(e, LinearLayout.LayoutParams(-1, dp(48))); nameEdits.add(e)
         }
-
-        TextView emptyLabel = text(
-            "Вес пустой кастрюли, г", 13, muted
-        );
-        emptyLabel.setPadding(0, 10, 0, 0);
-        panel.addView(emptyLabel);
-
-        EditText emptyInput = numberInput(emptyPot);
-        panel.addView(emptyInput);
-
-        TextView lossLabel = text(
-            "Потери при приготовлении, г", 13, muted
-        );
-        lossLabel.setPadding(0, 10, 0, 0);
-        panel.addView(lossLabel);
-
-        EditText lossInput = numberInput(losses);
-        panel.addView(lossInput);
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(panel);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-            .setView(scroll)
-            .setPositiveButton("Сохранить", null)
-            .setNegativeButton("Отмена", null)
-            .create();
-
-        dialog.setOnShowListener(d -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                .setOnClickListener(v -> {
-                    for (int i = 0; i < 5; i++) {
-                        String n = nameInputs[i].getText()
-                            .toString().trim();
-
-                        names[i] = n.isEmpty()
-                            ? defaultNames[i] : n;
-                    }
-
-                    emptyPot = readNumber(emptyInput, 0);
-                    losses = readNumber(lossInput, 0);
-
-                    saveData();
-                    renderPeople();
-                    recalculate();
-                    dialog.dismiss();
-                });
-        });
-
-        dialog.show();
-    }
-
-    private EditText numberInput(int value) {
-        EditText input = new EditText(this);
-        input.setSingleLine(true);
-        input.setText(String.valueOf(value));
-        input.setTextSize(16);
-        input.setInputType(InputType.TYPE_CLASS_NUMBER);
-        input.setSelectAllOnFocus(true);
-        return input;
-    }
-
-    private int readNumber(EditText input, int fallback) {
-        try {
-            return Math.max(0, Integer.parseInt(
-                input.getText().toString().trim()
-            ));
-        } catch (Exception e) {
-            return fallback;
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        saveData();
+        val empty = EditText(this).apply { setSingleLine(true); inputType = InputType.TYPE_CLASS_NUMBER; setText(emptyPot); hint = "Вес пустой кастрюли, г" }
+        box.addView(text("Вес пустой кастрюли, г", 12f, muted)); box.addView(empty, LinearLayout.LayoutParams(-1, dp(48)))
+        val loss = EditText(this).apply { setSingleLine(true); inputType = InputType.TYPE_CLASS_NUMBER; setText(losses); hint = "Потери на стенках, г" }
+        box.addView(text("Потери на стенках, г", 12f, muted)); box.addView(loss, LinearLayout.LayoutParams(-1, dp(48)))
+        AlertDialog.Builder(this).setTitle("Настройки").setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Отмена", null).setPositiveButton("Сохранить") { _, _ ->
+            repeat(5) { i -> names[i] = nameEdits[i].text.toString().trim().ifBlank { "Порция ${i+1}" } }
+            emptyPot = empty.text.toString().filter { it.isDigit() }.ifBlank { "0" }; losses = loss.text.toString().filter { it.isDigit() }.ifBlank { "0" }
+            save(); buildUi(); refresh()
+        }.show()
     }
 }
