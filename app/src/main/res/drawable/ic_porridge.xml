@@ -1,0 +1,115 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Фон -->
+    <path
+        android:fillColor="#F7F5EF"
+        android:pathData="M0,0 H108 V108 H0 Z" />
+
+    <!-- Пар -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#537046"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M39,30 C31,23 43,20 39,12" />
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#537046"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M54,28 C46,20 59,17 54,9" />
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#537046"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M69,30 C61,23 73,20 69,12" />
+
+    <!-- Поварской колпак -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#537046"
+        android:strokeWidth="3"
+        android:strokeLineJoin="round"
+        android:pathData="M38,39
+            C29,39 27,28 35,25
+            C35,17 46,15 51,22
+            C58,15 70,20 70,28
+            C79,31 76,40 68,40
+            Z" />
+
+    <!-- Край колпака -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#537046"
+        android:strokeWidth="3"
+        android:pathData="M36,38 H70 V44 H36 Z" />
+
+    <!-- Кастрюля -->
+    <path
+        android:fillColor="#537046"
+        android:pathData="M25,49
+            H83
+            L78,78
+            C77,84 72,88 66,88
+            H42
+            C36,88 31,84 30,78
+            Z" />
+
+    <!-- Каша -->
+    <path
+        android:fillColor="#E9B94E"
+        android:pathData="M29,51
+            C35,45 42,50 48,48
+            C55,45 62,50 68,48
+            C74,46 79,49 80,52
+            L78,59
+            H30 Z" />
+
+    <!-- Лицо -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,64
+            C40,61 44,61 44,64
+            C44,67 40,67 40,64 Z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M63,64
+            C63,61 67,61 67,64
+            C67,67 63,67 63,64 Z" />
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M45,73 C50,79 58,79 63,73" />
+
+    <!-- Ручки -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#537046"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M24,57 H17 V72 H27" />
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#537046"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M84,57 H91 V72 H81" />
+
+    <!-- Основание -->
+    <path
+        android:fillColor="#537046"
+        android:pathData="M39,91 H69 V96 H39 Z" />
+
+</vector>
