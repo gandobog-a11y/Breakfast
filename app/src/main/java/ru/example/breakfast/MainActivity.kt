@@ -217,7 +217,7 @@ class MainActivity : Activity() {
                 setPadding(0, dp(4), dp(6), dp(4))
                 background = null
                 hint = "Имя"
-                selectAllOnFocus = true
+                setSelectAllOnFocus(true)
             }
 
             val grams = makeNumberField().apply {
