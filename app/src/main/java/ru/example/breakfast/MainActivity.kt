@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -57,6 +58,11 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Не открываем системную клавиатуру при запуске.
+        window.setSoftInputMode(
+            WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+        )
+
         prefs = getSharedPreferences(
             "porridge_settings",
             MODE_PRIVATE
@@ -65,21 +71,28 @@ class MainActivity : Activity() {
         buildScreen()
         restoreValues()
         recalculate()
+
+        // Фокус остаётся на корневом контейнере, а не на поле ввода.
+        root.requestFocus()
     }
 
     private fun buildScreen() {
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            isFocusableInTouchMode = true
+            descendantFocusability =
+                LinearLayout.FOCUS_AFTER_DESCENDANTS
+
             setPadding(dp(12), dp(4), dp(12), dp(4))
             setBackgroundColor(backgroundColor)
         }
 
-        // Заголовок строго по центру, шестерёнка справа.
+        // Заголовок по центру, настройки справа.
         val header = FrameLayout(this)
 
         val title = TextView(this).apply {
-            text = "Завтрак"
-            textSize = 27f
+            text = "Наша каша"
+            textSize = 30f
             setTextColor(textColor)
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
@@ -89,16 +102,17 @@ class MainActivity : Activity() {
             title,
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                dp(48)
+                dp(52)
             )
         )
 
         val settingsButton = TextView(this).apply {
             text = "⚙"
-            textSize = 28f
+            textSize = 30f
             gravity = Gravity.CENTER
             setTextColor(accentColor)
             contentDescription = "Настройки"
+
             setOnClickListener {
                 showSettings()
             }
@@ -108,7 +122,7 @@ class MainActivity : Activity() {
             settingsButton,
             FrameLayout.LayoutParams(
                 dp(48),
-                dp(48),
+                dp(52),
                 Gravity.END or Gravity.CENTER_VERTICAL
             )
         )
@@ -117,7 +131,7 @@ class MainActivity : Activity() {
             header,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(48)
+                dp(52)
             )
         )
 
@@ -148,6 +162,7 @@ class MainActivity : Activity() {
         buildKeypad()
 
         setContentView(root)
+        root.requestFocus()
 
         // Учитываем верхнюю и нижнюю системные панели Android.
         root.setOnApplyWindowInsetsListener { view, insets ->
@@ -158,6 +173,7 @@ class MainActivity : Activity() {
                 val bars = insets.getInsets(
                     WindowInsets.Type.systemBars()
                 )
+
                 topInset = bars.top
                 bottomInset = bars.bottom
             } else {
@@ -189,21 +205,21 @@ class MainActivity : Activity() {
 
         card.setPadding(
             dp(12),
-            dp(6),
+            dp(8),
             dp(12),
-            dp(6)
+            dp(8)
         )
 
         addLabel(
             card,
             "ВЕС КАСТРЮЛИ С КАШЕЙ, г",
-            13f,
+            15f,
             mutedColor
         )
 
         potField = makeNumberField().apply {
             hint = "Например, 850"
-            textSize = 24f
+            textSize = 28f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER_VERTICAL
         }
@@ -224,7 +240,7 @@ class MainActivity : Activity() {
             potField,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(44)
+                dp(50)
             )
         )
 
@@ -234,7 +250,7 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                bottomMargin = dp(6)
+                bottomMargin = dp(8)
             }
         )
     }
@@ -242,7 +258,7 @@ class MainActivity : Activity() {
     private fun buildPeopleCards() {
         val heading = TextView(this).apply {
             text = "Кому сколько?"
-            textSize = 19f
+            textSize = 22f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(textColor)
         }
@@ -251,7 +267,7 @@ class MainActivity : Activity() {
             heading,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(30)
+                dp(34)
             )
         )
 
@@ -264,12 +280,12 @@ class MainActivity : Activity() {
         columns.addView(
             TextView(this).apply {
                 text = "Имя"
-                textSize = 13f
+                textSize = 15f
                 setTextColor(mutedColor)
             },
             LinearLayout.LayoutParams(
                 0,
-                dp(24),
+                dp(28),
                 1f
             )
         )
@@ -277,26 +293,26 @@ class MainActivity : Activity() {
         columns.addView(
             TextView(this).apply {
                 text = "Крупа"
-                textSize = 13f
+                textSize = 15f
                 gravity = Gravity.CENTER
                 setTextColor(mutedColor)
             },
             LinearLayout.LayoutParams(
-                dp(68),
-                dp(24)
+                dp(70),
+                dp(28)
             )
         )
 
         columns.addView(
             TextView(this).apply {
                 text = "Каша"
-                textSize = 13f
+                textSize = 15f
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
                 setTextColor(mutedColor)
             },
             LinearLayout.LayoutParams(
-                dp(82),
-                dp(24)
+                dp(88),
+                dp(28)
             )
         )
 
@@ -307,10 +323,7 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
 
-                background = roundedBackground(
-                    cardColor,
-                    10
-                )
+                background = roundedBackground(cardColor, 10)
 
                 setPadding(
                     dp(10),
@@ -321,7 +334,7 @@ class MainActivity : Activity() {
             }
 
             val name = EditText(this).apply {
-                textSize = 18f
+                textSize = 21f
                 setTextColor(textColor)
                 setSingleLine(true)
                 setPadding(0, 0, dp(3), 0)
@@ -332,7 +345,7 @@ class MainActivity : Activity() {
             }
 
             val grams = makeNumberField().apply {
-                textSize = 20f
+                textSize = 24f
                 gravity = Gravity.CENTER
                 setPadding(0, 0, 0, 0)
                 hint = "0"
@@ -341,7 +354,7 @@ class MainActivity : Activity() {
 
             val result = TextView(this).apply {
                 text = "—"
-                textSize = 22f
+                textSize = 26f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(accentColor)
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
@@ -356,7 +369,7 @@ class MainActivity : Activity() {
                 name,
                 LinearLayout.LayoutParams(
                     0,
-                    dp(48),
+                    dp(52),
                     1f
                 )
             )
@@ -364,16 +377,16 @@ class MainActivity : Activity() {
             row.addView(
                 grams,
                 LinearLayout.LayoutParams(
-                    dp(68),
-                    dp(44)
+                    dp(70),
+                    dp(48)
                 )
             )
 
             row.addView(
                 result,
                 LinearLayout.LayoutParams(
-                    dp(82),
-                    dp(44)
+                    dp(88),
+                    dp(48)
                 )
             )
 
@@ -383,7 +396,7 @@ class MainActivity : Activity() {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    bottomMargin = dp(4)
+                    bottomMargin = dp(5)
                 }
             )
 
@@ -416,7 +429,7 @@ class MainActivity : Activity() {
     private fun buildKeypad() {
         keypad = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(2), 0, 0)
+            setPadding(0, dp(3), 0, 0)
             visibility = View.GONE
         }
 
@@ -435,7 +448,7 @@ class MainActivity : Activity() {
             for (key in row) {
                 val button = Button(this).apply {
                     text = key
-                    textSize = if (key == "Ввод") 14f else 21f
+                    textSize = if (key == "Ввод") 17f else 25f
                     isAllCaps = false
 
                     setTextColor(
@@ -462,7 +475,7 @@ class MainActivity : Activity() {
                     button,
                     LinearLayout.LayoutParams(
                         0,
-                        dp(45),
+                        dp(49),
                         1f
                     ).apply {
                         marginStart = dp(3)
@@ -494,6 +507,9 @@ class MainActivity : Activity() {
     private fun showKeypad(field: EditText) {
         activeNumberField = field
 
+        // Отключаем системную клавиатуру для числовых полей.
+        field.showSoftInputOnFocus = false
+
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE)
             as InputMethodManager
 
@@ -502,10 +518,7 @@ class MainActivity : Activity() {
             0
         )
 
-        field.post {
-            field.showSoftInputOnFocus = false
-            keypad.visibility = View.VISIBLE
-        }
+        keypad.visibility = View.VISIBLE
     }
 
     private fun hideKeypad() {
@@ -522,6 +535,7 @@ class MainActivity : Activity() {
             0
         )
 
+        root.requestFocus()
         saveValues()
     }
 
@@ -560,9 +574,7 @@ class MainActivity : Activity() {
             )
 
             field.setText(updated)
-            field.setSelection(
-                minOf(start, updated.length)
-            )
+            field.setSelection(minOf(start, updated.length))
         } else if (start > 0) {
             val updated = current.removeRange(
                 start - 1,
@@ -577,19 +589,14 @@ class MainActivity : Activity() {
     private fun showSettings() {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(
-                dp(22),
-                dp(8),
-                dp(22),
-                0
-            )
+            setPadding(dp(22), dp(8), dp(22), 0)
         }
 
         val emptyInput = EditText(this).apply {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             setText(prefs.getInt("empty_pot", 0).toString())
             setSingleLine(true)
-            textSize = 18f
+            textSize = 21f
             hint = "Например, 254"
         }
 
@@ -597,14 +604,14 @@ class MainActivity : Activity() {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             setText(prefs.getInt("loss", 0).toString())
             setSingleLine(true)
-            textSize = 18f
+            textSize = 21f
             hint = "Например, 30"
         }
 
         addLabel(
             layout,
             "Вес пустой кастрюли, г",
-            14f,
+            17f,
             textColor
         )
 
@@ -612,14 +619,14 @@ class MainActivity : Activity() {
             emptyInput,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(46)
+                dp(50)
             )
         )
 
         addLabel(
             layout,
             "Потери при варке, г",
-            14f,
+            17f,
             textColor
         )
 
@@ -627,7 +634,7 @@ class MainActivity : Activity() {
             lossInput,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(46)
+                dp(50)
             )
         )
 
@@ -758,17 +765,9 @@ class MainActivity : Activity() {
             setTextColor(textColor)
             gravity = Gravity.CENTER_VERTICAL
 
-            background = roundedBackground(
-                cardColor,
-                8
-            )
+            background = roundedBackground(cardColor, 8)
 
-            setPadding(
-                dp(8),
-                0,
-                dp(8),
-                0
-            )
+            setPadding(dp(8), 0, dp(8), 0)
 
             showSoftInputOnFocus = false
         }
@@ -785,10 +784,7 @@ class MainActivity : Activity() {
                 dp(12)
             )
 
-            background = roundedBackground(
-                cardColor,
-                16
-            )
+            background = roundedBackground(cardColor, 16)
         }
     }
 
@@ -829,9 +825,7 @@ class MainActivity : Activity() {
     }
 
     private fun dp(value: Int): Int {
-        return (
-            value * resources.displayMetrics.density
-        ).roundToInt()
+        return (value * resources.displayMetrics.density).roundToInt()
     }
 
     override fun onPause() {
