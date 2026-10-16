@@ -2,15 +2,17 @@ package ru.example.breakfast
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.view.WindowInsets
 import android.view.inputmethod.InputMethodManager
-import android.content.Context
-import android.content.SharedPreferences
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -27,8 +29,6 @@ class MainActivity : Activity() {
     private lateinit var keypad: LinearLayout
 
     private lateinit var potField: EditText
-    private lateinit var potEmptyField: EditText
-    private lateinit var lossField: EditText
 
     private val nameFields = mutableListOf<EditText>()
     private val gramFields = mutableListOf<EditText>()
@@ -57,7 +57,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        prefs = getSharedPreferences("porridge_settings", MODE_PRIVATE)
+        prefs = getSharedPreferences(
+            "porridge_settings",
+            MODE_PRIVATE
+        )
 
         buildScreen()
         restoreValues()
@@ -67,7 +70,7 @@ class MainActivity : Activity() {
     private fun buildScreen() {
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(12), dp(18), dp(10))
+            setPadding(dp(12), dp(4), dp(12), dp(4))
             setBackgroundColor(backgroundColor)
         }
 
@@ -78,35 +81,46 @@ class MainActivity : Activity() {
 
         val title = TextView(this).apply {
             text = "Моя каша"
-            textSize = 28f
+            textSize = 26f
             setTextColor(textColor)
             typeface = Typeface.DEFAULT_BOLD
         }
 
         val settingsButton = TextView(this).apply {
             text = "⚙"
-            textSize = 29f
+            textSize = 28f
             gravity = Gravity.CENTER
             setTextColor(accentColor)
             contentDescription = "Настройки"
-            setPadding(dp(14), dp(4), dp(4), dp(4))
-            setOnClickListener { showSettings() }
+            setOnClickListener {
+                showSettings()
+            }
         }
 
         header.addView(
             title,
-            LinearLayout.LayoutParams(0, dp(52), 1f)
+            LinearLayout.LayoutParams(
+                0,
+                dp(46),
+                1f
+            )
         )
+
         header.addView(
             settingsButton,
-            LinearLayout.LayoutParams(dp(52), dp(52))
+            LinearLayout.LayoutParams(
+                dp(48),
+                dp(46)
+            )
         )
+
         root.addView(header)
 
         val scroll = ScrollView(this).apply {
-            isFillViewport = false
+            isFillViewport = true
             clipToPadding = false
-            setPadding(0, dp(4), 0, dp(8))
+            setPadding(0, 0, 0, dp(2))
+            overScrollMode = View.OVER_SCROLL_NEVER
         }
 
         content = LinearLayout(this).apply {
@@ -129,17 +143,56 @@ class MainActivity : Activity() {
         buildKeypad()
 
         setContentView(root)
+
+        // Учитываем нижнюю системную панель Android.
+        // Это оставляет цифровую клавиатуру выше системных кнопок.
+        root.setOnApplyWindowInsetsListener { view, insets ->
+
+            val bottomInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                insets.getInsets(
+                    WindowInsets.Type.systemBars()
+                ).bottom
+            } else {
+                @Suppress("DEPRECATION")
+                insets.systemWindowInsetBottom
+            }
+
+            view.setPadding(
+                dp(12),
+                dp(4),
+                dp(12),
+                dp(4) + bottomInset
+            )
+
+            insets
+        }
+
+        root.requestApplyInsets()
     }
 
     private fun buildPotCard() {
         val card = makeCard()
 
-        addLabel(card, "ВЕС КАСТРЮЛИ С КАШЕЙ", 12f, mutedColor)
+        card.setPadding(
+            dp(12),
+            dp(6),
+            dp(12),
+            dp(6)
+        )
 
-        potField = makeNumberField()
-        potField.hint = "Например, 850"
-        potField.textSize = 25f
-        potField.typeface = Typeface.DEFAULT_BOLD
+        addLabel(
+            card,
+            "ВЕС КАСТРЮЛИ С КАШЕЙ, г",
+            12f,
+            mutedColor
+        )
+
+        potField = makeNumberField().apply {
+            hint = "Например, 850"
+            textSize = 23f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER_VERTICAL
+        }
 
         potField.setOnFocusChangeListener { view, hasFocus ->
             if (hasFocus) {
@@ -151,26 +204,8 @@ class MainActivity : Activity() {
             potField,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(54)
-            ).apply {
-                topMargin = dp(6)
-            }
-        )
-
-        val explanation = TextView(this).apply {
-            text = "Вес в граммах"
-            textSize = 13f
-            setTextColor(mutedColor)
-        }
-
-        card.addView(
-            explanation,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(4)
-            }
+                dp(44)
+            )
         )
 
         content.addView(
@@ -179,15 +214,21 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                bottomMargin = dp(12)
+                bottomMargin = dp(6)
             }
         )
+
+        potField.addTextChangedListenerSimple {
+            if (!rebuilding) {
+                recalculate()
+            }
+        }
     }
 
     private fun buildPeopleCards() {
         val heading = TextView(this).apply {
             text = "Кому сколько?"
-            textSize = 19f
+            textSize = 18f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(textColor)
         }
@@ -196,125 +237,144 @@ class MainActivity : Activity() {
             heading,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = dp(10)
-            }
+                dp(28)
+            )
         )
 
-        for (i in defaultNames.indices) {
-            val card = makeCard()
+        // Заголовки трёх колонок.
+        val columns = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), 0, dp(10), 0)
+        }
 
-            val topRow = LinearLayout(this).apply {
+        columns.addView(
+            TextView(this).apply {
+                text = "Имя"
+                textSize = 12f
+                setTextColor(mutedColor)
+            },
+            LinearLayout.LayoutParams(
+                0,
+                dp(24),
+                1f
+            )
+        )
+
+        columns.addView(
+            TextView(this).apply {
+                text = "Крупа"
+                textSize = 12f
+                gravity = Gravity.CENTER
+                setTextColor(mutedColor)
+            },
+            LinearLayout.LayoutParams(
+                dp(64),
+                dp(24)
+            )
+        )
+
+        columns.addView(
+            TextView(this).apply {
+                text = "Каша"
+                textSize = 12f
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                setTextColor(mutedColor)
+            },
+            LinearLayout.LayoutParams(
+                dp(80),
+                dp(24)
+            )
+        )
+
+        content.addView(columns)
+
+        for (i in defaultNames.indices) {
+
+            val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
+
+                background = roundedBackground(
+                    cardColor,
+                    10
+                )
+
+                setPadding(
+                    dp(10),
+                    0,
+                    dp(10),
+                    0
+                )
             }
 
+            // Имя едока.
             val name = EditText(this).apply {
-                textSize = 17f
+                textSize = 16f
                 setTextColor(textColor)
                 setSingleLine(true)
-                setPadding(0, dp(4), dp(6), dp(4))
+                setPadding(0, 0, dp(3), 0)
                 background = null
                 hint = "Имя"
                 setSelectAllOnFocus(true)
+                imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
             }
 
+            // Количество сухой крупы.
             val grams = makeNumberField().apply {
-                textSize = 18f
+                textSize = 17f
                 gravity = Gravity.CENTER
-                setPadding(dp(4), 0, dp(4), 0)
+                setPadding(0, 0, 0, 0)
                 hint = "0"
+                background = null
+            }
+
+            // Расчётная порция готовой каши.
+            val result = TextView(this).apply {
+                text = "—"
+                textSize = 19f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(accentColor)
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                maxLines = 1
             }
 
             nameFields.add(name)
             gramFields.add(grams)
-
-            topRow.addView(
-                name,
-                LinearLayout.LayoutParams(0, dp(46), 1f)
-            )
-
-            val gramsColumn = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-            }
-
-            addLabel(gramsColumn, "СУХАЯ КРУПА", 10f, mutedColor)
-
-            gramsColumn.addView(
-                grams,
-                LinearLayout.LayoutParams(dp(86), dp(42))
-            )
-
-            topRow.addView(
-                gramsColumn,
-                LinearLayout.LayoutParams(
-                    dp(100),
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            )
-
-            card.addView(topRow)
-
-            val divider = View(this).apply {
-                setBackgroundColor(borderColor)
-            }
-
-            card.addView(
-                divider,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(1)
-                ).apply {
-                    topMargin = dp(8)
-                    bottomMargin = dp(8)
-                }
-            )
-
-            val bottomRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-
-            val resultCaption = TextView(this).apply {
-                text = "Готовая каша"
-                textSize = 14f
-                setTextColor(mutedColor)
-            }
-
-            val result = TextView(this).apply {
-                text = "—"
-                textSize = 23f
-                typeface = Typeface.DEFAULT_BOLD
-                setTextColor(accentColor)
-                gravity = Gravity.END or Gravity.CENTER_VERTICAL
-            }
-
             resultLabels.add(result)
 
-            bottomRow.addView(
-                resultCaption,
-                LinearLayout.LayoutParams(0, dp(36), 1f)
-            )
-
-            bottomRow.addView(
-                result,
+            row.addView(
+                name,
                 LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    dp(36)
+                    0,
+                    dp(44),
+                    1f
                 )
             )
 
-            card.addView(bottomRow)
+            row.addView(
+                grams,
+                LinearLayout.LayoutParams(
+                    dp(64),
+                    dp(42)
+                )
+            )
+
+            row.addView(
+                result,
+                LinearLayout.LayoutParams(
+                    dp(80),
+                    dp(42)
+                )
+            )
 
             content.addView(
-                card,
+                row,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    bottomMargin = dp(10)
+                    bottomMargin = dp(4)
                 }
             )
 
@@ -325,27 +385,29 @@ class MainActivity : Activity() {
             }
 
             name.setOnFocusChangeListener { _, hasFocus ->
-                if (!hasFocus) saveValues()
+                if (!hasFocus) {
+                    saveValues()
+                }
             }
 
             grams.addTextChangedListenerSimple {
-                if (!rebuilding) recalculate()
+                if (!rebuilding) {
+                    recalculate()
+                }
             }
 
             name.addTextChangedListenerSimple {
-                if (!rebuilding) saveValues()
+                if (!rebuilding) {
+                    saveValues()
+                }
             }
-        }
-
-        potField.addTextChangedListenerSimple {
-            if (!rebuilding) recalculate()
         }
     }
 
     private fun buildKeypad() {
         keypad = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(4), 0, 0)
+            setPadding(0, dp(2), 0, 0)
             visibility = View.GONE
         }
 
@@ -357,25 +419,41 @@ class MainActivity : Activity() {
         )
 
         for (row in rows) {
+
             val rowLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
             }
 
             for (key in row) {
+
                 val button = Button(this).apply {
                     text = key
                     textSize = if (key == "Ввод") 14f else 21f
                     isAllCaps = false
+
                     setTextColor(
-                        if (key == "Ввод") Color.WHITE else textColor
+                        if (key == "Ввод") {
+                            Color.WHITE
+                        } else {
+                            textColor
+                        }
                     )
 
                     background = roundedBackground(
-                        if (key == "Ввод") accentColor else cardColor,
-                        12
+                        if (key == "Ввод") {
+                            accentColor
+                        } else {
+                            cardColor
+                        },
+                        10
                     )
 
-                    setPadding(dp(2), 0, dp(2), 0)
+                    setPadding(
+                        dp(2),
+                        0,
+                        dp(2),
+                        0
+                    )
 
                     setOnClickListener {
                         when (key) {
@@ -390,13 +468,13 @@ class MainActivity : Activity() {
                     button,
                     LinearLayout.LayoutParams(
                         0,
-                        dp(49),
+                        dp(45),
                         1f
                     ).apply {
                         marginStart = dp(3)
                         marginEnd = dp(3)
-                        topMargin = dp(3)
-                        bottomMargin = dp(3)
+                        topMargin = dp(2)
+                        bottomMargin = dp(2)
                     }
                 )
             }
@@ -425,7 +503,10 @@ class MainActivity : Activity() {
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE)
             as InputMethodManager
 
-        imm.hideSoftInputFromWindow(field.windowToken, 0)
+        imm.hideSoftInputFromWindow(
+            field.windowToken,
+            0
+        )
 
         field.post {
             field.showSoftInputOnFocus = false
@@ -442,7 +523,10 @@ class MainActivity : Activity() {
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE)
             as InputMethodManager
 
-        imm.hideSoftInputFromWindow(root.windowToken, 0)
+        imm.hideSoftInputFromWindow(
+            root.windowToken,
+            0
+        )
 
         saveValues()
     }
@@ -461,7 +545,11 @@ class MainActivity : Activity() {
         )
 
         field.setText(updated)
-        field.setSelection((minOf(start, end) + digit.length).coerceAtMost(updated.length))
+
+        field.setSelection(
+            (minOf(start, end) + digit.length)
+                .coerceAtMost(updated.length)
+        )
     }
 
     private fun deleteLastDigit() {
@@ -472,55 +560,123 @@ class MainActivity : Activity() {
         val current = field.text.toString()
 
         if (start != end) {
+
             val updated = current.removeRange(
                 minOf(start, end),
                 maxOf(start, end)
             )
+
             field.setText(updated)
-            field.setSelection(minOf(start, updated.length))
+            field.setSelection(
+                minOf(start, updated.length)
+            )
+
         } else if (start > 0) {
-            val updated = current.removeRange(start - 1, start)
+
+            val updated = current.removeRange(
+                start - 1,
+                start
+            )
+
             field.setText(updated)
             field.setSelection(start - 1)
         }
     }
 
     private fun showSettings() {
+
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(8), dp(22), 0)
+            setPadding(
+                dp(22),
+                dp(8),
+                dp(22),
+                0
+            )
         }
 
         val emptyInput = EditText(this).apply {
-            hint = "Вес пустой кастрюли, г"
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setText(prefs.getInt("empty_pot", 0).toString())
+            setText(
+                prefs.getInt("empty_pot", 0).toString()
+            )
             setSingleLine(true)
+            textSize = 18f
+            showSoftInputOnFocus = false
         }
 
         val lossInput = EditText(this).apply {
-            hint = "Потери, г"
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setText(prefs.getInt("loss", 0).toString())
+            setText(
+                prefs.getInt("loss", 0).toString()
+            )
             setSingleLine(true)
+            textSize = 18f
+            showSoftInputOnFocus = false
         }
 
-        layout.addView(emptyInput)
-        layout.addView(lossInput)
+        // Постоянные подписи не исчезают при заполнении полей.
+        addLabel(
+            layout,
+            "Вес пустой кастрюли, г",
+            14f,
+            textColor
+        )
 
-        AlertDialog.Builder(this)
+        layout.addView(
+            emptyInput,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(46)
+            )
+        )
+
+        addLabel(
+            layout,
+            "Потери при варке, г",
+            14f,
+            textColor
+        )
+
+        layout.addView(
+            lossInput,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(46)
+            )
+        )
+
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Настройки")
             .setView(layout)
             .setNegativeButton("Отмена", null)
-            .setPositiveButton("Сохранить") { _, _ ->
-                prefs.edit()
-                    .putInt("empty_pot", emptyInput.text.toString().toIntOrNull() ?: 0)
-                    .putInt("loss", lossInput.text.toString().toIntOrNull() ?: 0)
-                    .apply()
+            .setPositiveButton("Сохранить", null)
+            .create()
 
-                recalculate()
-            }
-            .show()
+        dialog.setOnShowListener {
+
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener {
+
+                    prefs.edit()
+                        .putInt(
+                            "empty_pot",
+                            emptyInput.text.toString()
+                                .toIntOrNull() ?: 0
+                        )
+                        .putInt(
+                            "loss",
+                            lossInput.text.toString()
+                                .toIntOrNull() ?: 0
+                        )
+                        .apply()
+
+                    recalculate()
+                    dialog.dismiss()
+                }
+        }
+
+        dialog.show()
     }
 
     private fun restoreValues() {
@@ -531,12 +687,19 @@ class MainActivity : Activity() {
         )
 
         for (i in defaultNames.indices) {
+
             nameFields[i].setText(
-                prefs.getString("name_$i", defaultNames[i])
+                prefs.getString(
+                    "name_$i",
+                    defaultNames[i]
+                )
             )
 
             gramFields[i].setText(
-                prefs.getString("grams_$i", defaultGrams[i].toString())
+                prefs.getString(
+                    "grams_$i",
+                    defaultGrams[i].toString()
+                )
             )
         }
 
@@ -544,21 +707,35 @@ class MainActivity : Activity() {
     }
 
     private fun saveValues() {
-        if (!::prefs.isInitialized || nameFields.size != 5) return
+        if (!::prefs.isInitialized || nameFields.size != 5) {
+            return
+        }
 
         val editor = prefs.edit()
-            .putString("pot_weight", potField.text.toString())
+            .putString(
+                "pot_weight",
+                potField.text.toString()
+            )
 
         for (i in defaultNames.indices) {
-            editor.putString("name_$i", nameFields[i].text.toString())
-            editor.putString("grams_$i", gramFields[i].text.toString())
+            editor.putString(
+                "name_$i",
+                nameFields[i].text.toString()
+            )
+
+            editor.putString(
+                "grams_$i",
+                gramFields[i].text.toString()
+            )
         }
 
         editor.apply()
     }
 
     private fun recalculate() {
-        if (rebuilding || nameFields.size != 5) return
+        if (rebuilding || nameFields.size != 5) {
+            return
+        }
 
         val pot = potField.text.toString().toDoubleOrNull()
         val empty = prefs.getInt("empty_pot", 0)
@@ -575,13 +752,19 @@ class MainActivity : Activity() {
         }
 
         for (i in defaultNames.indices) {
-            val dry = gramFields[i].text.toString().toDoubleOrNull() ?: 0.0
+
+            val dry = gramFields[i]
+                .text.toString()
+                .toDoubleOrNull() ?: 0.0
 
             resultLabels[i].text = when {
                 dry <= 0 -> "—"
                 cooked == null -> "—"
                 totalDry <= 0 -> "—"
-                else -> "${(cooked * dry / totalDry).roundToInt()} г"
+
+                else -> {
+                    "${(cooked * dry / totalDry).roundToInt()} г"
+                }
             }
         }
 
@@ -594,8 +777,19 @@ class MainActivity : Activity() {
             setSingleLine(true)
             setTextColor(textColor)
             gravity = Gravity.CENTER_VERTICAL
-            background = roundedBackground(cardColor, 8)
-            setPadding(dp(10), 0, dp(10), 0)
+
+            background = roundedBackground(
+                cardColor,
+                8
+            )
+
+            setPadding(
+                dp(8),
+                0,
+                dp(8),
+                0
+            )
+
             showSoftInputOnFocus = false
         }
     }
@@ -603,8 +797,18 @@ class MainActivity : Activity() {
     private fun makeCard(): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = roundedBackground(cardColor, 16)
+
+            setPadding(
+                dp(14),
+                dp(12),
+                dp(14),
+                dp(12)
+            )
+
+            background = roundedBackground(
+                cardColor,
+                16
+            )
         }
     }
 
@@ -618,6 +822,7 @@ class MainActivity : Activity() {
             text = textValue
             textSize = size
             setTextColor(color)
+
             if (size >= 18f) {
                 typeface = Typeface.DEFAULT_BOLD
             }
@@ -632,16 +837,24 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun roundedBackground(color: Int, radius: Int): GradientDrawable {
+    private fun roundedBackground(
+        color: Int,
+        radius: Int
+    ): GradientDrawable {
         return GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
-            setStroke(dp(1), borderColor)
+            setStroke(
+                dp(1),
+                borderColor
+            )
         }
     }
 
     private fun dp(value: Int): Int {
-        return (value * resources.displayMetrics.density).roundToInt()
+        return (
+            value * resources.displayMetrics.density
+        ).roundToInt()
     }
 
     override fun onPause() {
@@ -649,25 +862,34 @@ class MainActivity : Activity() {
         super.onPause()
     }
 
-    private fun EditText.addTextChangedListenerSimple(action: () -> Unit) {
-        addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(
-                s: CharSequence?,
-                start: Int,
-                count: Int,
-                after: Int
-            ) {}
+    private fun EditText.addTextChangedListenerSimple(
+        action: () -> Unit
+    ) {
+        addTextChangedListener(
+            object : android.text.TextWatcher {
 
-            override fun onTextChanged(
-                s: CharSequence?,
-                start: Int,
-                before: Int,
-                count: Int
-            ) {
-                action()
+                override fun beforeTextChanged(
+                    s: CharSequence?,
+                    start: Int,
+                    count: Int,
+                    after: Int
+                ) {
+                }
+
+                override fun onTextChanged(
+                    s: CharSequence?,
+                    start: Int,
+                    before: Int,
+                    count: Int
+                ) {
+                    action()
+                }
+
+                override fun afterTextChanged(
+                    s: android.text.Editable?
+                ) {
+                }
             }
-
-            override fun afterTextChanged(s: android.text.Editable?) {}
-        })
+        )
     }
 }
