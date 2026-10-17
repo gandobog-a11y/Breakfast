@@ -31,6 +31,9 @@ class MainActivity : Activity() {
     private lateinit var keypad: LinearLayout
     private lateinit var potField: EditText
 
+    private lateinit var totalDryLabel: TextView
+    private lateinit var waterLabel: TextView
+
     private val nameFields = mutableListOf<EditText>()
     private val gramFields = mutableListOf<EditText>()
     private val resultLabels = mutableListOf<TextView>()
@@ -58,7 +61,6 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Не открываем системную клавиатуру при запуске.
         window.setSoftInputMode(
             WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
         )
@@ -72,7 +74,6 @@ class MainActivity : Activity() {
         restoreValues()
         recalculate()
 
-        // Фокус остаётся на корневом контейнере, а не на поле ввода.
         root.requestFocus()
     }
 
@@ -87,7 +88,6 @@ class MainActivity : Activity() {
             setBackgroundColor(backgroundColor)
         }
 
-        // Заголовок по центру, настройки справа.
         val header = FrameLayout(this)
 
         val title = TextView(this).apply {
@@ -164,7 +164,6 @@ class MainActivity : Activity() {
         setContentView(root)
         root.requestFocus()
 
-        // Учитываем верхнюю и нижнюю системные панели Android.
         root.setOnApplyWindowInsetsListener { view, insets ->
             val topInset: Int
             val bottomInset: Int
@@ -424,6 +423,100 @@ class MainActivity : Activity() {
                 }
             }
         }
+
+        // Итоговая строка под таблицей.
+        // Слева оставляем свободное место под колонкой имён,
+        // затем показываем общую крупу и воду.
+        val totalsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(4), dp(10), dp(2))
+        }
+
+        totalsRow.addView(
+            View(this),
+            LinearLayout.LayoutParams(
+                0,
+                dp(1),
+                1f
+            )
+        )
+
+        val dryTotalColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+
+        dryTotalColumn.addView(
+            TextView(this).apply {
+                text = "ВСЕГО КРУПЫ"
+                textSize = 12f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(mutedColor)
+                gravity = Gravity.CENTER
+            }
+        )
+
+        totalDryLabel = TextView(this).apply {
+            text = "0 г"
+            textSize = 21f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(textColor)
+            gravity = Gravity.CENTER
+        }
+
+        dryTotalColumn.addView(totalDryLabel)
+
+        val waterColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+
+        waterColumn.addView(
+            TextView(this).apply {
+                text = "ВОДА"
+                textSize = 12f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(mutedColor)
+                gravity = Gravity.CENTER
+            }
+        )
+
+        waterLabel = TextView(this).apply {
+            text = "0 мл"
+            textSize = 21f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(accentColor)
+            gravity = Gravity.CENTER
+        }
+
+        waterColumn.addView(waterLabel)
+
+        totalsRow.addView(
+            dryTotalColumn,
+            LinearLayout.LayoutParams(
+                dp(70),
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        totalsRow.addView(
+            waterColumn,
+            LinearLayout.LayoutParams(
+                dp(88),
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        content.addView(
+            totalsRow,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(6)
+            }
+        )
     }
 
     private fun buildKeypad() {
@@ -507,7 +600,6 @@ class MainActivity : Activity() {
     private fun showKeypad(field: EditText) {
         activeNumberField = field
 
-        // Отключаем системную клавиатуру для числовых полей.
         field.showSoftInputOnFocus = false
 
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE)
@@ -733,6 +825,13 @@ class MainActivity : Activity() {
         val totalDry = gramFields.sumOf {
             it.text.toString().toDoubleOrNull() ?: 0.0
         }
+
+        // Вода: 630 мл на каждые 130 г сухой крупы.
+        // Округляем результат до целого миллилитра.
+        val waterMl = (totalDry * 630.0 / 130.0).roundToInt()
+
+        totalDryLabel.text = "${totalDry.roundToInt()} г"
+        waterLabel.text = "$waterMl мл"
 
         val cooked = if (pot != null) {
             (pot - empty - loss).coerceAtLeast(0.0)
